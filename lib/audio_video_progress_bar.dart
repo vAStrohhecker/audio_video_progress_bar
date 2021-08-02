@@ -82,6 +82,7 @@ class ProgressBar extends LeafRenderObjectWidget {
     this.timeLabelType,
     this.timeLabelTextStyle,
     this.timeLabelPadding = 0.0,
+    this.showPositionOnSeek = false
   }) : super(key: key);
 
   /// The elapsed playing time of the media.
@@ -170,29 +171,33 @@ class ProgressBar extends LeafRenderObjectWidget {
   /// the progress bar and a negative number will move them closer.
   final double timeLabelPadding;
 
+  /// If true, the new playback position will be previewed in the current position label
+  final bool showPositionOnSeek;
+
   @override
   _RenderProgressBar createRenderObject(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
     final textStyle = timeLabelTextStyle ?? theme.textTheme.bodyText1;
     return _RenderProgressBar(
-      progress: progress,
-      total: total,
-      buffered: buffered ?? Duration.zero,
-      onSeek: onSeek,
-      barHeight: barHeight,
-      baseBarColor: baseBarColor ?? primaryColor.withOpacity(0.24),
-      progressBarColor: progressBarColor ?? primaryColor,
-      bufferedBarColor: bufferedBarColor ?? primaryColor.withOpacity(0.24),
-      thumbRadius: thumbRadius,
-      thumbColor: thumbColor ?? primaryColor,
-      thumbGlowColor:
-          thumbGlowColor ?? (thumbColor ?? primaryColor).withAlpha(80),
-      thumbGlowRadius: thumbGlowRadius,
-      timeLabelLocation: timeLabelLocation ?? TimeLabelLocation.below,
-      timeLabelType: timeLabelType ?? TimeLabelType.totalTime,
-      timeLabelTextStyle: textStyle,
-      timeLabelPadding: timeLabelPadding,
+        progress: progress,
+        total: total,
+        buffered: buffered ?? Duration.zero,
+        onSeek: onSeek,
+        barHeight: barHeight,
+        baseBarColor: baseBarColor ?? primaryColor.withOpacity(0.24),
+        progressBarColor: progressBarColor ?? primaryColor,
+        bufferedBarColor: bufferedBarColor ?? primaryColor.withOpacity(0.24),
+        thumbRadius: thumbRadius,
+        thumbColor: thumbColor ?? primaryColor,
+        thumbGlowColor:
+        thumbGlowColor ?? (thumbColor ?? primaryColor).withAlpha(80),
+        thumbGlowRadius: thumbGlowRadius,
+        timeLabelLocation: timeLabelLocation ?? TimeLabelLocation.below,
+        timeLabelType: timeLabelType ?? TimeLabelType.totalTime,
+        timeLabelTextStyle: textStyle,
+        timeLabelPadding: timeLabelPadding,
+        showPositionOnSeek: showPositionOnSeek
     );
   }
 
@@ -219,7 +224,8 @@ class ProgressBar extends LeafRenderObjectWidget {
       ..timeLabelLocation = timeLabelLocation ?? TimeLabelLocation.below
       ..timeLabelType = timeLabelType ?? TimeLabelType.totalTime
       ..timeLabelTextStyle = textStyle
-      ..timeLabelPadding = timeLabelPadding;
+      ..timeLabelPadding = timeLabelPadding
+      ..showPositionOnSeek = showPositionOnSeek;
   }
 
   @override
@@ -265,6 +271,7 @@ class _RenderProgressBar extends RenderBox {
     required TimeLabelType timeLabelType,
     TextStyle? timeLabelTextStyle,
     double timeLabelPadding = 0.0,
+    bool showPositionOnSeek = false
   })  : _progress = progress,
         _total = total,
         _buffered = buffered,
@@ -280,7 +287,9 @@ class _RenderProgressBar extends RenderBox {
         _timeLabelLocation = timeLabelLocation,
         _timeLabelType = timeLabelType,
         _timeLabelTextStyle = timeLabelTextStyle,
-        _timeLabelPadding = timeLabelPadding {
+        _timeLabelPadding = timeLabelPadding,
+        _showPositionOnSeek = showPositionOnSeek
+  {
     _drag = HorizontalDragGestureRecognizer()
       ..onStart = _onDragStart
       ..onUpdate = _onDragUpdate
@@ -369,8 +378,17 @@ class _RenderProgressBar extends RenderBox {
   }
 
   TextPainter _leftTimeLabel() {
-    final text = _getTimeString(progress);
-    return _layoutText(text);
+    if(showPositionOnSeek && _userIsDraggingThumb){
+      final thumbMiliseconds = _thumbValue * total.inMilliseconds;
+      final preview = Duration(milliseconds: thumbMiliseconds.round());
+      final text = _getTimeString(preview);
+      return _layoutText(text);
+    }
+    else {
+      final text = _getTimeString(progress);
+      return _layoutText(text);
+    }
+
   }
 
   TextPainter _rightTimeLabel() {
@@ -538,6 +556,14 @@ class _RenderProgressBar extends RenderBox {
     markNeedsLayout();
   }
 
+  /// The length of the radius for the circular thumb.
+  bool get showPositionOnSeek => _showPositionOnSeek;
+  bool _showPositionOnSeek;
+  set showPositionOnSeek(bool value) {
+    if (_showPositionOnSeek == value) return;
+    _showPositionOnSeek = value;
+  }
+
   // The smallest that this widget would ever want to be.
   static const _minDesiredWidth = 100.0;
 
@@ -662,7 +688,7 @@ class _RenderProgressBar extends RenderBox {
 
     // progress bar
     final barDy =
-        (isLabelBelow) ? 0.0 : leftTimeLabel.height + _timeLabelPadding;
+    (isLabelBelow) ? 0.0 : leftTimeLabel.height + _timeLabelPadding;
     _drawProgressBar(canvas, Offset(0, barDy), Size(barWidth, barHeight));
   }
 
@@ -746,9 +772,9 @@ class _RenderProgressBar extends RenderBox {
 
   void _drawBar(
       {required Canvas canvas,
-      required Size availableSize,
-      required double widthProportion,
-      required Color color}) {
+        required Size availableSize,
+        required double widthProportion,
+        required Color color}) {
     final baseBarPaint = Paint()
       ..color = color
       ..strokeCap = StrokeCap.round
